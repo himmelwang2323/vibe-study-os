@@ -1,72 +1,9 @@
-const STORAGE_KEY = "vibe-study-os-state";
+const STORAGE_KEY = "vibe-study-os-state-v2";
 
-const demoState = {
-  goals: [
-    {
-      id: crypto.randomUUID(),
-      title: "建立机器学习基础能力",
-      deadline: "2026-08-31",
-      why: "为后续科研和项目实践打好数学、代码、论文阅读的共同底座。",
-      milestones: [
-        { id: crypto.randomUUID(), text: "完成线性代数核心概念复习", done: true },
-        { id: crypto.randomUUID(), text: "每周精读 1 篇经典论文", done: false },
-        { id: crypto.randomUUID(), text: "复现 2 个小型模型实验", done: false }
-      ]
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "形成稳定论文写作节奏",
-      deadline: "2026-12-20",
-      why: "把阅读、实验、写作变成连续产出，而不是临近 deadline 才启动。",
-      milestones: [
-        { id: crypto.randomUUID(), text: "整理 Related Work 卡片库", done: true },
-        { id: crypto.randomUUID(), text: "每周完成 500 字实验记录", done: false }
-      ]
-    }
-  ],
-  tasks: [
-    {
-      id: crypto.randomUUID(),
-      title: "读完优化方法 lecture 2 并整理错题",
-      course: "机器学习",
-      week: 1,
-      due: "2026-05-27",
-      load: "中",
-      goalId: null,
-      done: false
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "完成英文摘要初稿",
-      course: "论文写作",
-      week: 1,
-      due: "2026-05-29",
-      load: "重",
-      goalId: null,
-      done: false
-    },
-    {
-      id: crypto.randomUUID(),
-      title: "复盘本周阅读卡片",
-      course: "科研习惯",
-      week: 2,
-      due: "2026-06-02",
-      load: "轻",
-      goalId: null,
-      done: true
-    }
-  ],
-  reviews: [
-    {
-      id: crypto.randomUUID(),
-      date: "2026-05-24",
-      type: "日复盘",
-      content: "完成学习系统原型需求拆分，明确长期目标、学期任务、日周复盘三层结构。",
-      reflection: "系统应该先服务每天的动作，再向上反映目标进度。",
-      minutes: 90,
-      energy: 4
-    }
-  ],
+const emptyState = {
+  goals: [],
+  tasks: [],
+  reviews: [],
   timer: {
     running: false,
     title: "",
@@ -77,9 +14,6 @@ const demoState = {
   }
 };
 
-demoState.tasks[0].goalId = demoState.goals[0].id;
-demoState.tasks[1].goalId = demoState.goals[1].id;
-
 let state = loadState();
 let taskFilter = "all";
 let timerTick = null;
@@ -89,11 +23,11 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return structuredClone(demoState);
+  if (!saved) return structuredClone(emptyState);
   try {
     return normalizeState(JSON.parse(saved));
   } catch {
-    return structuredClone(demoState);
+    return structuredClone(emptyState);
   }
 }
 
@@ -535,8 +469,8 @@ document.body.addEventListener("click", (event) => {
   }
 });
 
-$("#resetDemo").addEventListener("click", () => {
-  state = structuredClone(demoState);
+$("#clearData").addEventListener("click", () => {
+  state = structuredClone(emptyState);
   saveState();
   renderAll();
 });

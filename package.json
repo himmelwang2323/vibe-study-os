@@ -1,0 +1,21 @@
+{
+  "name": "vibe-study-os",
+  "version": "0.2.0",
+  "description": "A lightweight learning management system with a desktop focus timer.",
+  "main": "desktop/main.js",
+  "scripts": {
+    "desktop": "electron_config_cache=.electron-cache electron .",
+    "start": "npm run desktop"
+  },
+  "keywords": [
+    "learning",
+    "study",
+    "focus-timer",
+    "desktop"
+  ],
+  "author": "himmelwang2323",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.2.0"
+  }
+}
