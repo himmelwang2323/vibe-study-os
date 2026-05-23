@@ -66,7 +66,15 @@ const demoState = {
       minutes: 90,
       energy: 4
     }
-  ]
+  ],
+  timer: {
+    running: false,
+    title: "",
+    taskId: "",
+    startedAt: null,
+    accumulated: 0,
+    note: ""
+  }
 };
 
 demoState.tasks[0].goalId = demoState.goals[0].id;
@@ -74,6 +82,7 @@ demoState.tasks[1].goalId = demoState.goals[1].id;
 
 let state = loadState();
 let taskFilter = "all";
+let timerTick = null;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -82,10 +91,27 @@ function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (!saved) return structuredClone(demoState);
   try {
-    return JSON.parse(saved);
+    return normalizeState(JSON.parse(saved));
   } catch {
     return structuredClone(demoState);
   }
+}
+
+function normalizeState(value) {
+  return {
+    goals: value.goals || [],
+    tasks: value.tasks || [],
+    reviews: value.reviews || [],
+    timer: {
+      running: false,
+      title: "",
+      taskId: "",
+      startedAt: null,
+      accumulated: 0,
+      note: "",
+      ...(value.timer || {})
+    }
+  };
 }
 
 function saveState() {
@@ -225,6 +251,18 @@ function renderGoalSelect() {
   $("#goalSelect").innerHTML = options;
 }
 
+function renderFocusTaskSelect() {
+  const options = [`<option value="">不关联任务</option>`]
+    .concat(
+      state.tasks
+        .filter((task) => !task.done)
+        .map((task) => `<option value="${task.id}">${escapeHtml(task.title)}</option>`)
+    )
+    .join("");
+  $("#focusTaskSelect").innerHTML = options;
+  $("#focusTaskSelect").value = state.timer.taskId || "";
+}
+
 function renderGoals() {
   const container = $("#goalList");
   if (!state.goals.length) {
@@ -342,9 +380,11 @@ function renderAll() {
   renderWeekMap();
   renderTodayStrip();
   renderGoalSelect();
+  renderFocusTaskSelect();
   renderGoals();
   renderTasks();
   renderReviews();
+  renderTimer();
 }
 
 function formValues(form) {
@@ -501,5 +541,138 @@ $("#resetDemo").addEventListener("click", () => {
   renderAll();
 });
 
+function activeElapsedSeconds() {
+  const timer = state.timer;
+  const runningSeconds =
+    timer.running && timer.startedAt
+      ? Math.floor((Date.now() - new Date(timer.startedAt).getTime()) / 1000)
+      : 0;
+  return Math.max(0, Number(timer.accumulated || 0) + runningSeconds);
+}
+
+function formatDuration(totalSeconds, compact = false) {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const rest = seconds % 60;
+  if (compact) {
+    return hours > 0
+      ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
+      : `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+  }
+  return [hours, minutes, rest].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function currentTimerTitle() {
+  const task = state.tasks.find((item) => item.id === state.timer.taskId);
+  return state.timer.title || task?.title || "未命名学习段";
+}
+
+function renderTimer() {
+  const elapsed = activeElapsedSeconds();
+  $("#focusClock").textContent = formatDuration(elapsed);
+  $("#focusMiniTime").textContent = formatDuration(elapsed, true);
+  $("#focusTitle").value = state.timer.title || "";
+  $("#focusTaskSelect").value = state.timer.taskId || "";
+  $("#focusNote").value = state.timer.note || "";
+
+  const status = $("#focusStatus");
+  status.classList.toggle("running", state.timer.running);
+  status.classList.toggle("paused", !state.timer.running && elapsed > 0);
+  status.textContent = state.timer.running ? "计时中" : elapsed > 0 ? "已暂停" : "未开始";
+  $("#focusStart").textContent = state.timer.running ? "计时中" : elapsed > 0 ? "继续" : "开始";
+  $("#focusStart").disabled = state.timer.running;
+  $("#focusPause").disabled = !state.timer.running;
+  $("#focusFinish").disabled = elapsed < 1;
+}
+
+function syncTimerInputs() {
+  state.timer.title = $("#focusTitle").value.trim();
+  state.timer.taskId = $("#focusTaskSelect").value;
+  state.timer.note = $("#focusNote").value.trim();
+}
+
+function startTimer() {
+  syncTimerInputs();
+  if (state.timer.running) return;
+  state.timer.running = true;
+  state.timer.startedAt = new Date().toISOString();
+  saveState();
+  renderTimer();
+  ensureTimerTick();
+}
+
+function pauseTimer() {
+  if (!state.timer.running) return;
+  state.timer.accumulated = activeElapsedSeconds();
+  state.timer.running = false;
+  state.timer.startedAt = null;
+  syncTimerInputs();
+  saveState();
+  renderTimer();
+}
+
+function finishTimer() {
+  syncTimerInputs();
+  const elapsed = activeElapsedSeconds();
+  if (elapsed < 1) return;
+
+  const minutes = Math.max(1, Math.round(elapsed / 60));
+  state.reviews.push({
+    id: crypto.randomUUID(),
+    date: new Date().toISOString().slice(0, 10),
+    type: "日复盘",
+    content: currentTimerTitle(),
+    reflection: state.timer.note || `完成一段 ${minutes} 分钟的学习。`,
+    minutes,
+    energy: 4
+  });
+
+  state.timer = {
+    running: false,
+    title: "",
+    taskId: "",
+    startedAt: null,
+    accumulated: 0,
+    note: ""
+  };
+  saveState();
+  renderAll();
+}
+
+function ensureTimerTick() {
+  if (timerTick) return;
+  timerTick = window.setInterval(() => {
+    if (!state.timer.running) return;
+    renderTimer();
+  }, 1000);
+}
+
+$("#focusToggle").addEventListener("click", () => {
+  const dock = $("#focusDock");
+  const collapsed = dock.classList.toggle("collapsed");
+  $("#focusToggle").setAttribute("aria-expanded", String(!collapsed));
+});
+
+$("#focusStart").addEventListener("click", startTimer);
+$("#focusPause").addEventListener("click", pauseTimer);
+$("#focusFinish").addEventListener("click", finishTimer);
+
+["#focusTitle", "#focusTaskSelect", "#focusNote"].forEach((selector) => {
+  $(selector).addEventListener("input", () => {
+    syncTimerInputs();
+    saveState();
+  });
+  $(selector).addEventListener("change", () => {
+    syncTimerInputs();
+    saveState();
+  });
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") renderTimer();
+});
+
 setDefaultDates();
 renderAll();
+ensureTimerTick();

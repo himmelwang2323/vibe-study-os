@@ -279,6 +279,40 @@
       </form>
     </dialog>
 
+    <section class="focus-dock collapsed" id="focusDock" aria-label="悬浮学习计时器">
+      <button class="focus-tab" id="focusToggle" title="学习计时器" aria-expanded="false">
+        <span aria-hidden="true">◷</span>
+        <strong id="focusMiniTime">00:00</strong>
+      </button>
+      <div class="focus-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Focus Timer</p>
+            <h2>当前学习段</h2>
+          </div>
+          <span class="focus-status" id="focusStatus">未开始</span>
+        </div>
+        <label>
+          工作内容
+          <input id="focusTitle" placeholder="例如：读论文 / 写作 / 刷题" />
+        </label>
+        <label>
+          关联任务
+          <select id="focusTaskSelect"></select>
+        </label>
+        <div class="focus-clock" id="focusClock">00:00:00</div>
+        <div class="focus-controls">
+          <button class="primary-button" id="focusStart" type="button">开始</button>
+          <button class="small-button" id="focusPause" type="button">暂停</button>
+          <button class="small-button" id="focusFinish" type="button">结束并复盘</button>
+        </div>
+        <label>
+          一句话复盘
+          <textarea id="focusNote" rows="3" placeholder="结束时写一句：完成了什么，下一步是什么"></textarea>
+        </label>
+      </div>
+    </section>
+
     <script src="./app.js"></script>
   </body>
 </html>

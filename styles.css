@@ -520,6 +520,91 @@ dialog::backdrop {
   padding: 18px;
 }
 
+.focus-dock {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 20;
+  width: min(360px, calc(100vw - 28px));
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+}
+
+.focus-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 16px;
+  background: var(--ink);
+  color: #ffffff;
+  box-shadow: var(--shadow);
+}
+
+.focus-tab span {
+  color: #f1c24b;
+  font-size: 20px;
+}
+
+.focus-panel {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.focus-dock.collapsed .focus-panel {
+  display: none;
+}
+
+.focus-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: #ece7dc;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.focus-status.running {
+  background: #e4f3ed;
+  color: var(--green);
+}
+
+.focus-status.paused {
+  background: #fff2d7;
+  color: #9a6810;
+}
+
+.focus-clock {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #e6e0d4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.focus-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.35fr;
+  gap: 8px;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -575,5 +660,14 @@ dialog::backdrop {
 
   .week-map {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .focus-dock {
+    right: 14px;
+    bottom: 14px;
+  }
+
+  .focus-controls {
+    grid-template-columns: 1fr;
   }
 }
