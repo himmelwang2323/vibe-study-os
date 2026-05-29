@@ -3,42 +3,44 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Vibe Study OS</title>
+    <title>Finals Board</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="app-shell">
-      <aside class="sidebar" aria-label="学习系统导航">
+      <aside class="sidebar" aria-label="期末盘点导航">
         <div class="brand">
           <div class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" role="img">
-              <path d="M6 7.5C6 5.6 7.6 4 9.5 4H26v21H9.5A3.5 3.5 0 0 1 6 21.5v-14Z" />
-              <path d="M10 8h12M10 13h9M10 18h12" />
+              <path d="M7 6h18v20H7z" />
+              <path d="M11 11h10M11 16h10M11 21h6" />
             </svg>
           </div>
           <div>
-            <strong>Vibe Study OS</strong>
-            <span>目标 / 学期 / 复盘</span>
+            <strong>Finals Board</strong>
+            <span>课程 / 项目 / 材料</span>
           </div>
         </div>
+
         <nav class="nav-pills" aria-label="主视图">
           <button class="nav-pill active" data-view="dashboard" title="总览">
             <span class="icon" aria-hidden="true">⌂</span>
             总览
           </button>
-          <button class="nav-pill" data-view="goals" title="长期目标">
-            <span class="icon" aria-hidden="true">◎</span>
-            长期目标
-          </button>
-          <button class="nav-pill" data-view="semester" title="学期任务">
+          <button class="nav-pill" data-view="projects" title="项目看板">
             <span class="icon" aria-hidden="true">▦</span>
-            学期任务
+            项目看板
           </button>
-          <button class="nav-pill" data-view="review" title="复盘">
-            <span class="icon" aria-hidden="true">↺</span>
-            日周复盘
+          <button class="nav-pill" data-view="actions" title="今日行动">
+            <span class="icon" aria-hidden="true">→</span>
+            今日行动
+          </button>
+          <button class="nav-pill" data-view="materials" title="材料准备">
+            <span class="icon" aria-hidden="true">□</span>
+            材料准备
           </button>
         </nav>
+
         <div class="sidebar-note">
           <span>本地草稿</span>
           <strong id="saveState">已自动保存</strong>
@@ -48,38 +50,38 @@
       <main class="main">
         <header class="topbar">
           <div>
-            <p class="eyebrow">学习管理系统原型</p>
-            <h1>把长期愿景压到今天能做的一步</h1>
+            <p class="eyebrow">Finals Project Review</p>
+            <h1>期末项目盘点</h1>
           </div>
           <div class="topbar-actions">
             <button class="ghost-button" id="clearData" title="清空本地数据">
               <span aria-hidden="true">×</span>
             </button>
-            <button class="primary-button" data-open="quickAdd">新增任务</button>
+            <button class="primary-button" data-view-jump="projects">新增项目</button>
           </div>
         </header>
 
         <section class="view active" id="dashboard" aria-label="总览">
           <div class="metric-grid">
             <article class="metric-panel">
-              <span>长期目标</span>
-              <strong id="goalCount">0</strong>
-              <small id="goalMomentum">等待拆解</small>
+              <span>期末项目</span>
+              <strong id="projectCount">0</strong>
+              <small>门课程/任务</small>
             </article>
             <article class="metric-panel">
-              <span>本周任务</span>
-              <strong id="weekTaskCount">0</strong>
-              <small id="weekDoneCount">0 项已完成</small>
+              <span>高风险</span>
+              <strong id="highRiskCount">0</strong>
+              <small>需要优先处理</small>
             </article>
             <article class="metric-panel">
-              <span>今日学习</span>
-              <strong id="todayMinutes">0m</strong>
-              <small id="todayFocus">未记录专注点</small>
+              <span>7 天内截止</span>
+              <strong id="soonCount">0</strong>
+              <small>请尽快收尾</small>
             </article>
             <article class="metric-panel">
-              <span>复盘连续性</span>
-              <strong id="reviewCount">0</strong>
-              <small>条日/周复盘</small>
+              <span>总体完成率</span>
+              <strong id="overallProgress">0%</strong>
+              <small id="doneSummary">0 项待办已完成</small>
             </article>
           </div>
 
@@ -87,87 +89,60 @@
             <section class="work-panel">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">Pipeline</p>
-                  <h2>目标推进链</h2>
+                  <p class="eyebrow">Priority</p>
+                  <h2>最需要先看的项目</h2>
                 </div>
-                <button class="text-button" data-view-jump="goals">查看全部</button>
+                <button class="text-button" data-view-jump="actions">行动清单</button>
               </div>
-              <div class="goal-flow" id="goalFlow"></div>
+              <div class="stack-list" id="priorityList"></div>
             </section>
+
             <section class="work-panel">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">This Week</p>
-                  <h2>本周任务分布</h2>
+                  <p class="eyebrow">Deadlines</p>
+                  <h2>近期截止</h2>
                 </div>
-                <button class="text-button" data-view-jump="semester">排期</button>
+                <button class="text-button" data-view-jump="projects">全部项目</button>
               </div>
-              <div class="week-map" id="weekMap"></div>
+              <div class="deadline-rail" id="deadlineRail"></div>
             </section>
           </div>
 
           <section class="work-panel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Today</p>
-                <h2>今日学习内容</h2>
+                <p class="eyebrow">Preparation</p>
+                <h2>材料缺口</h2>
               </div>
-              <button class="text-button" data-view-jump="review">写复盘</button>
+              <button class="text-button" data-view-jump="materials">整理材料</button>
             </div>
-            <div class="today-strip" id="todayStrip"></div>
+            <div class="material-gap-grid" id="materialGapGrid"></div>
           </section>
         </section>
 
-        <section class="view" id="goals" aria-label="长期目标">
+        <section class="view" id="projects" aria-label="项目看板">
           <div class="two-column">
-            <form class="editor-panel" id="goalForm">
-              <h2>长期目标拆解</h2>
+            <form class="editor-panel" id="projectForm">
+              <h2>新增期末项目</h2>
               <label>
-                目标名称
-                <input name="title" required placeholder="例如：完成机器学习系统化学习" />
-              </label>
-              <label>
-                目标期限
-                <input name="deadline" type="date" required />
-              </label>
-              <label>
-                推进理由
-                <textarea name="why" rows="3" placeholder="为什么这个目标现在重要"></textarea>
-              </label>
-              <label>
-                切成的小目标
-                <textarea name="milestones" rows="5" placeholder="每行一个小目标，例如：读完线性代数复习"></textarea>
-              </label>
-              <button class="primary-button" type="submit">保存目标</button>
-            </form>
-            <div class="list-panel">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Long Range</p>
-                  <h2>目标板</h2>
-                </div>
-              </div>
-              <div id="goalList" class="stack-list"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="view" id="semester" aria-label="学期任务">
-          <div class="two-column">
-            <form class="editor-panel" id="taskForm">
-              <h2>学期任务排布</h2>
-              <label>
-                任务
-                <input name="title" required placeholder="例如：完成概率论第 3 章习题" />
+                项目名称
+                <input name="title" required placeholder="例如：数据库课程期末报告" />
               </label>
               <div class="form-row">
                 <label>
-                  所属课程/主题
-                  <input name="course" required placeholder="课程或方向" />
+                  课程
+                  <input name="course" required placeholder="课程名称" />
                 </label>
                 <label>
-                  周次
-                  <input name="week" type="number" min="1" max="24" value="1" />
+                  类型
+                  <select name="type">
+                    <option>论文</option>
+                    <option>大作业</option>
+                    <option>考试复习</option>
+                    <option>Presentation</option>
+                    <option>实验报告</option>
+                  </select>
                 </label>
               </div>
               <div class="form-row">
@@ -176,142 +151,97 @@
                   <input name="due" type="date" required />
                 </label>
                 <label>
-                  工作量
-                  <select name="load">
-                    <option>轻</option>
+                  状态
+                  <select name="status">
+                    <option>未开始</option>
+                    <option selected>进行中</option>
+                    <option>待修改</option>
+                    <option>已提交</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  重要程度
+                  <select name="importance">
+                    <option>低</option>
                     <option selected>中</option>
-                    <option>重</option>
+                    <option>高</option>
+                  </select>
+                </label>
+                <label>
+                  风险
+                  <select name="risk">
+                    <option>低</option>
+                    <option selected>中</option>
+                    <option>高</option>
                   </select>
                 </label>
               </div>
               <label>
-                关联长期目标
-                <select name="goalId" id="goalSelect"></select>
+                剩余待办
+                <textarea name="todos" rows="5" placeholder="每行一个待办，例如：完成初稿"></textarea>
               </label>
-              <button class="primary-button" type="submit">加入学期计划</button>
+              <label>
+                材料 / 准备项
+                <textarea name="materials" rows="5" placeholder="每行一个材料，例如：课程 PPT / 数据集 / 参考文献"></textarea>
+              </label>
+              <label>
+                当前卡点
+                <textarea name="blocker" rows="3" placeholder="哪里还不清楚，或最容易拖住的点"></textarea>
+              </label>
+              <label>
+                下一步动作
+                <input name="nextAction" placeholder="写成今天能做的一步" />
+              </label>
+              <button class="primary-button" type="submit">保存项目</button>
             </form>
+
             <div class="list-panel">
               <div class="section-heading">
                 <div>
-                  <p class="eyebrow">Semester</p>
-                  <h2>任务看板</h2>
+                  <p class="eyebrow">Board</p>
+                  <h2>项目卡片</h2>
                 </div>
-                <div class="segmented" role="group" aria-label="任务过滤">
-                  <button class="active" data-task-filter="all">全部</button>
-                  <button data-task-filter="open">进行中</button>
-                  <button data-task-filter="done">完成</button>
+                <div class="segmented" role="group" aria-label="项目过滤">
+                  <button class="active" data-project-filter="all">全部</button>
+                  <button data-project-filter="active">未完成</button>
+                  <button data-project-filter="risk">高风险</button>
+                  <button data-project-filter="done">已提交</button>
                 </div>
               </div>
-              <div id="taskList" class="stack-list"></div>
+              <div class="project-grid" id="projectList"></div>
             </div>
           </div>
         </section>
 
-        <section class="view" id="review" aria-label="每日每周复盘">
-          <div class="two-column">
-            <form class="editor-panel" id="reviewForm">
-              <h2>学习内容与复盘</h2>
-              <div class="form-row">
-                <label>
-                  日期
-                  <input name="date" type="date" required />
-                </label>
-                <label>
-                  类型
-                  <select name="type">
-                    <option>日复盘</option>
-                    <option>周复盘</option>
-                  </select>
-                </label>
+        <section class="view" id="actions" aria-label="今日行动">
+          <section class="work-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Today</p>
+                <h2>今日建议处理顺序</h2>
               </div>
-              <label>
-                学习内容
-                <textarea name="content" rows="4" required placeholder="今天/本周具体学了什么"></textarea>
-              </label>
-              <label>
-                复盘
-                <textarea name="reflection" rows="4" placeholder="哪里卡住了、下次怎么调整"></textarea>
-              </label>
-              <div class="form-row">
-                <label>
-                  专注时长
-                  <input name="minutes" type="number" min="0" step="10" value="90" />
-                </label>
-                <label>
-                  能量
-                  <input name="energy" type="range" min="1" max="5" value="4" />
-                </label>
-              </div>
-              <button class="primary-button" type="submit">记录复盘</button>
-            </form>
-            <div class="list-panel">
-              <div class="section-heading">
-                <div>
-                  <p class="eyebrow">Review</p>
-                  <h2>复盘流</h2>
-                </div>
-              </div>
-              <div id="reviewList" class="stack-list"></div>
+              <span class="soft-label">按风险、截止日期和进度自动排序</span>
             </div>
-          </div>
+            <div class="action-list" id="actionList"></div>
+          </section>
+        </section>
+
+        <section class="view" id="materials" aria-label="材料准备">
+          <section class="work-panel">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Materials</p>
+                <h2>材料与准备项</h2>
+              </div>
+              <button class="text-button" data-view-jump="projects">补充项目</button>
+            </div>
+            <div class="material-board" id="materialBoard"></div>
+          </section>
         </section>
       </main>
     </div>
-
-    <dialog id="quickAdd">
-      <form method="dialog" class="dialog-card" id="quickTaskForm">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Quick Add</p>
-            <h2>新增今日任务</h2>
-          </div>
-          <button class="ghost-button" value="cancel" title="关闭">×</button>
-        </div>
-        <label>
-          今天要推进什么
-          <input name="title" required placeholder="写一个可以完成的小动作" />
-        </label>
-        <label>
-          放进哪门课/主题
-          <input name="course" required placeholder="课程、项目或能力方向" />
-        </label>
-        <button class="primary-button" value="default">加入本周</button>
-      </form>
-    </dialog>
-
-    <section class="focus-dock collapsed" id="focusDock" aria-label="悬浮学习计时器">
-      <button class="focus-tab" id="focusToggle" title="学习计时器" aria-expanded="false">
-        <span aria-hidden="true">◷</span>
-        <strong id="focusMiniTime">00:00</strong>
-      </button>
-      <div class="focus-panel">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Focus Timer</p>
-            <h2>当前学习段</h2>
-          </div>
-          <span class="focus-status" id="focusStatus">未开始</span>
-        </div>
-        <label>
-          工作内容
-          <input id="focusTitle" placeholder="例如：读论文 / 写作 / 刷题" />
-        </label>
-        <label>
-          关联任务
-          <select id="focusTaskSelect"></select>
-        </label>
-        <div class="focus-clock" id="focusClock">00:00:00</div>
-        <div class="focus-controls">
-          <button class="primary-button" id="focusStart" type="button">开始</button>
-          <button class="small-button" id="focusPause" type="button">暂停</button>
-          <button class="small-button" id="focusFinish" type="button">结束并复盘</button>
-        </div>
-        <label>
-          一句话复盘
-          <textarea id="focusNote" rows="3" placeholder="结束时写一句：完成了什么，下一步是什么"></textarea>
-        </label>
-      </div>
-    </section>
 
     <script src="./app.js"></script>
   </body>

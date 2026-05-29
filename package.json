@@ -1,16 +1,16 @@
 {
-  "name": "vibe-study-os",
+  "name": "finals-board",
   "version": "0.2.0",
-  "description": "A lightweight learning management system with a desktop focus timer.",
+  "description": "A lightweight finals project inventory board.",
   "main": "desktop/main.js",
   "scripts": {
     "desktop": "electron_config_cache=.electron-cache electron .",
     "start": "npm run desktop"
   },
   "keywords": [
-    "learning",
-    "study",
-    "focus-timer",
+    "finals",
+    "courses",
+    "projects",
     "desktop"
   ],
   "author": "himmelwang2323",

@@ -10,7 +10,7 @@ function createWindow() {
     height: 760,
     minWidth: 920,
     minHeight: 640,
-    title: "Vibe Study OS",
+    title: "Finals Board",
     backgroundColor: "#f7f5ef",
     titleBarStyle: "hiddenInset",
     webPreferences: {
@@ -32,7 +32,7 @@ function createWindow() {
 function createTray() {
   const icon = nativeImage.createEmpty();
   tray = new Tray(icon);
-  tray.setToolTip("Vibe Study OS");
+  tray.setToolTip("Finals Board");
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {

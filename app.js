@@ -1,22 +1,11 @@
-const STORAGE_KEY = "vibe-study-os-state-v2";
+const STORAGE_KEY = "finals-board-state-v1";
 
 const emptyState = {
-  goals: [],
-  tasks: [],
-  reviews: [],
-  timer: {
-    running: false,
-    title: "",
-    taskId: "",
-    startedAt: null,
-    accumulated: 0,
-    note: ""
-  }
+  projects: []
 };
 
 let state = loadState();
-let taskFilter = "all";
-let timerTick = null;
+let projectFilter = "all";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -33,18 +22,31 @@ function loadState() {
 
 function normalizeState(value) {
   return {
-    goals: value.goals || [],
-    tasks: value.tasks || [],
-    reviews: value.reviews || [],
-    timer: {
-      running: false,
-      title: "",
-      taskId: "",
-      startedAt: null,
-      accumulated: 0,
-      note: "",
-      ...(value.timer || {})
-    }
+    projects: (value.projects || []).map((project) => ({
+      id: project.id || crypto.randomUUID(),
+      title: project.title || "",
+      course: project.course || "",
+      type: project.type || "大作业",
+      due: project.due || "",
+      status: project.status || "进行中",
+      importance: project.importance || "中",
+      risk: project.risk || "中",
+      blocker: project.blocker || "",
+      nextAction: project.nextAction || "",
+      todos: (project.todos || []).map(normalizeChecklistItem),
+      materials: (project.materials || []).map(normalizeChecklistItem)
+    }))
+  };
+}
+
+function normalizeChecklistItem(item) {
+  if (typeof item === "string") {
+    return { id: crypto.randomUUID(), text: item, done: false };
+  }
+  return {
+    id: item.id || crypto.randomUUID(),
+    text: item.text || "",
+    done: Boolean(item.done)
   };
 }
 
@@ -55,24 +57,6 @@ function saveState() {
   window.setTimeout(() => {
     saveStateNode.textContent = "已自动保存";
   }, 900);
-}
-
-function formatDate(date) {
-  if (!date) return "未设置";
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "short",
-    day: "numeric"
-  }).format(new Date(`${date}T00:00:00`));
-}
-
-function getProgress(goal) {
-  if (!goal.milestones.length) return 0;
-  const done = goal.milestones.filter((item) => item.done).length;
-  return Math.round((done / goal.milestones.length) * 100);
-}
-
-function goalName(goalId) {
-  return state.goals.find((goal) => goal.id === goalId)?.title || "未关联目标";
 }
 
 function escapeHtml(value) {
@@ -93,232 +77,371 @@ function setView(viewId) {
   });
 }
 
-function renderMetrics() {
-  const openTasks = state.tasks.filter((task) => !task.done);
-  const doneTasks = state.tasks.filter((task) => task.done);
-  const today = new Date().toISOString().slice(0, 10);
-  const todayReviews = state.reviews.filter((review) => review.date === today);
-  const todayMinutes = todayReviews.reduce((sum, review) => sum + Number(review.minutes || 0), 0);
-
-  $("#goalCount").textContent = state.goals.length;
-  $("#goalMomentum").textContent = `${Math.round(
-    state.goals.reduce((sum, goal) => sum + getProgress(goal), 0) / Math.max(state.goals.length, 1)
-  )}% 平均推进`;
-  $("#weekTaskCount").textContent = openTasks.length;
-  $("#weekDoneCount").textContent = `${doneTasks.length} 项已完成`;
-  $("#todayMinutes").textContent = `${todayMinutes}m`;
-  $("#todayFocus").textContent = todayReviews[0]?.content.slice(0, 16) || "未记录专注点";
-  $("#reviewCount").textContent = state.reviews.length;
+function formatDate(date) {
+  if (!date) return "未设置";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "short",
+    day: "numeric"
+  }).format(new Date(`${date}T00:00:00`));
 }
 
-function renderGoalFlow() {
-  const container = $("#goalFlow");
-  if (!state.goals.length) {
-    container.innerHTML = `<div class="empty">先添加一个长期目标，再把它切成小目标。</div>`;
-    return;
-  }
-
-  container.innerHTML = state.goals
-    .map((goal) => {
-      const progress = getProgress(goal);
-      const next = goal.milestones.find((item) => !item.done)?.text || "已完成全部小目标";
-      return `
-        <article class="flow-item">
-          <div class="tag-row">
-            <span class="tag green">${progress}%</span>
-            <span class="tag">截止 ${formatDate(goal.deadline)}</span>
-          </div>
-          <h3>${escapeHtml(goal.title)}</h3>
-          <div class="progress"><span style="width: ${progress}%"></span></div>
-          <p class="meta-line">下一步：${escapeHtml(next)}</p>
-        </article>
-      `;
-    })
-    .join("");
+function daysUntil(date) {
+  if (!date) return 999;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(`${date}T00:00:00`);
+  return Math.ceil((due - today) / 86400000);
 }
 
-function renderWeekMap() {
-  const weeks = [1, 2, 3, 4];
-  $("#weekMap").innerHTML = weeks
-    .map((week) => {
-      const tasks = state.tasks.filter((task) => Number(task.week) === week);
-      const label = tasks.length
-        ? tasks.map((task) => `${task.done ? "✓" : "•"} ${escapeHtml(task.title)}`).join("<br />")
-        : "尚未排入任务";
-      return `
-        <article class="week-cell">
-          <strong>第 ${week} 周</strong>
-          <span>${label}</span>
-        </article>
-      `;
-    })
-    .join("");
+function dueLabel(project) {
+  const days = daysUntil(project.due);
+  if (days < 0) return `已逾期 ${Math.abs(days)} 天`;
+  if (days === 0) return "今天截止";
+  if (days === 1) return "明天截止";
+  if (days < 999) return `${days} 天后截止`;
+  return "未设置截止";
 }
 
-function renderTodayStrip() {
-  const upcoming = [...state.tasks]
-    .filter((task) => !task.done)
-    .sort((a, b) => new Date(a.due) - new Date(b.due))
-    .slice(0, 3);
-  $("#todayStrip").innerHTML = upcoming.length
-    ? upcoming
-        .map(
-          (task) => `
-          <article class="today-item">
-            <div class="tag-row">
-              <span class="tag yellow">${escapeHtml(task.course)}</span>
-              <span class="tag">截止 ${formatDate(task.due)}</span>
-            </div>
-            <h3>${escapeHtml(task.title)}</h3>
-            <p class="meta-line">关联：${escapeHtml(goalName(task.goalId))}</p>
-          </article>
-        `
-        )
-        .join("")
-    : `<div class="empty">当前没有进行中的学期任务。</div>`;
+function checklistProgress(items) {
+  if (!items.length) return 0;
+  return Math.round((items.filter((item) => item.done).length / items.length) * 100);
 }
 
-function renderGoalSelect() {
-  const options = [`<option value="">不关联</option>`]
-    .concat(state.goals.map((goal) => `<option value="${goal.id}">${escapeHtml(goal.title)}</option>`))
-    .join("");
-  $("#goalSelect").innerHTML = options;
+function projectProgress(project) {
+  return checklistProgress(project.todos);
 }
 
-function renderFocusTaskSelect() {
-  const options = [`<option value="">不关联任务</option>`]
-    .concat(
-      state.tasks
-        .filter((task) => !task.done)
-        .map((task) => `<option value="${task.id}">${escapeHtml(task.title)}</option>`)
-    )
-    .join("");
-  $("#focusTaskSelect").innerHTML = options;
-  $("#focusTaskSelect").value = state.timer.taskId || "";
+function materialProgress(project) {
+  return checklistProgress(project.materials);
 }
 
-function renderGoals() {
-  const container = $("#goalList");
-  if (!state.goals.length) {
-    container.innerHTML = `<div class="empty">还没有长期目标。</div>`;
-    return;
-  }
-
-  container.innerHTML = state.goals
-    .map(
-      (goal) => `
-      <article class="flow-item">
-        <div class="tag-row">
-          <span class="tag green">${getProgress(goal)}%</span>
-          <span class="tag">截止 ${formatDate(goal.deadline)}</span>
-        </div>
-        <h3>${escapeHtml(goal.title)}</h3>
-        <p class="meta-line">${escapeHtml(goal.why || "暂未填写推进理由")}</p>
-        <div class="progress"><span style="width: ${getProgress(goal)}%"></span></div>
-        <div class="milestone-list">
-          ${goal.milestones
-            .map(
-              (item) => `
-              <label class="check-line">
-                <input type="checkbox" data-goal="${goal.id}" data-milestone="${item.id}" ${
-                  item.done ? "checked" : ""
-                } />
-                <span>${escapeHtml(item.text)}</span>
-              </label>
-            `
-            )
-            .join("")}
-        </div>
-        <div class="item-actions">
-          <button class="small-button danger" data-delete-goal="${goal.id}">删除目标</button>
-        </div>
-      </article>
-    `
-    )
-    .join("");
+function openTodos(project) {
+  return project.todos.filter((item) => !item.done);
 }
 
-function loadClass(load) {
-  if (load === "重") return "red";
-  if (load === "轻") return "green";
+function openMaterials(project) {
+  return project.materials.filter((item) => !item.done);
+}
+
+function riskClass(risk) {
+  if (risk === "高") return "red";
+  if (risk === "低") return "green";
   return "yellow";
 }
 
-function renderTasks() {
-  const container = $("#taskList");
-  const tasks = state.tasks.filter((task) => {
-    if (taskFilter === "open") return !task.done;
-    if (taskFilter === "done") return task.done;
-    return true;
-  });
+function statusClass(status) {
+  if (status === "已提交") return "green";
+  if (status === "待修改") return "yellow";
+  if (status === "未开始") return "red";
+  return "";
+}
 
-  if (!tasks.length) {
-    container.innerHTML = `<div class="empty">这个过滤条件下没有任务。</div>`;
+function riskScore(project) {
+  const risk = { 高: 60, 中: 35, 低: 10 }[project.risk] || 20;
+  const importance = { 高: 20, 中: 10, 低: 0 }[project.importance] || 0;
+  const days = daysUntil(project.due);
+  const deadline = days < 0 ? 40 : days <= 1 ? 35 : days <= 3 ? 25 : days <= 7 ? 15 : 0;
+  const progressPenalty = Math.max(0, 30 - Math.round(projectProgress(project) / 4));
+  const submittedBonus = project.status === "已提交" ? -200 : 0;
+  return risk + importance + deadline + progressPenalty + submittedBonus;
+}
+
+function sortedProjects() {
+  return [...state.projects].sort((a, b) => {
+    const scoreDiff = riskScore(b) - riskScore(a);
+    if (scoreDiff !== 0) return scoreDiff;
+    return daysUntil(a.due) - daysUntil(b.due);
+  });
+}
+
+function parseLines(value) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((text) => ({ id: crypto.randomUUID(), text, done: false }));
+}
+
+function renderMetrics() {
+  const projects = state.projects;
+  const highRisk = projects.filter((project) => project.risk === "高" && project.status !== "已提交");
+  const soon = projects.filter((project) => {
+    const days = daysUntil(project.due);
+    return project.status !== "已提交" && days >= 0 && days <= 7;
+  });
+  const allTodos = projects.flatMap((project) => project.todos);
+  const doneTodos = allTodos.filter((item) => item.done);
+  const progress = allTodos.length ? Math.round((doneTodos.length / allTodos.length) * 100) : 0;
+
+  $("#projectCount").textContent = projects.length;
+  $("#highRiskCount").textContent = highRisk.length;
+  $("#soonCount").textContent = soon.length;
+  $("#overallProgress").textContent = `${progress}%`;
+  $("#doneSummary").textContent = `${doneTodos.length} / ${allTodos.length} 项待办已完成`;
+}
+
+function renderPriorityList() {
+  const container = $("#priorityList");
+  const projects = sortedProjects().filter((project) => project.status !== "已提交").slice(0, 4);
+  if (!projects.length) {
+    container.innerHTML = `<div class="empty">还没有需要处理的期末项目。</div>`;
     return;
   }
 
-  container.innerHTML = tasks
-    .sort((a, b) => new Date(a.due) - new Date(b.due))
+  container.innerHTML = projects
     .map(
-      (task) => `
-      <article class="task-item">
-        <div class="tag-row">
-          <span class="tag">${escapeHtml(task.course)}</span>
-          <span class="tag ${loadClass(task.load)}">${escapeHtml(task.load)}负荷</span>
-          <span class="tag">第 ${task.week} 周</span>
-        </div>
-        <h3>${task.done ? "✓ " : ""}${escapeHtml(task.title)}</h3>
-        <p class="meta-line">截止 ${formatDate(task.due)} · ${escapeHtml(goalName(task.goalId))}</p>
-        <div class="item-actions">
-          <button class="small-button" data-toggle-task="${task.id}">${task.done ? "标记进行中" : "标记完成"}</button>
-          <button class="small-button danger" data-delete-task="${task.id}">删除</button>
-        </div>
-      </article>
-    `
+      (project) => `
+        <article class="compact-card">
+          <div class="tag-row">
+            <span class="tag ${riskClass(project.risk)}">${project.risk}风险</span>
+            <span class="tag">${formatDate(project.due)}</span>
+            <span class="tag">${projectProgress(project)}%</span>
+          </div>
+          <h3>${escapeHtml(project.title)}</h3>
+          <p class="meta-line">${escapeHtml(project.course)} · ${dueLabel(project)}</p>
+          <p class="next-line">${escapeHtml(nextStep(project))}</p>
+        </article>
+      `
     )
     .join("");
 }
 
-function renderReviews() {
-  const container = $("#reviewList");
-  if (!state.reviews.length) {
-    container.innerHTML = `<div class="empty">还没有复盘记录。</div>`;
+function renderDeadlineRail() {
+  const projects = [...state.projects]
+    .filter((project) => project.status !== "已提交")
+    .sort((a, b) => daysUntil(a.due) - daysUntil(b.due))
+    .slice(0, 6);
+  $("#deadlineRail").innerHTML = projects.length
+    ? projects
+        .map(
+          (project) => `
+            <article class="deadline-card">
+              <strong>${formatDate(project.due)}</strong>
+              <span>${escapeHtml(project.title)}</span>
+              <small>${dueLabel(project)}</small>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">暂无近期截止项目。</div>`;
+}
+
+function renderMaterialGaps() {
+  const gaps = sortedProjects()
+    .map((project) => ({ project, items: openMaterials(project) }))
+    .filter((entry) => entry.items.length)
+    .slice(0, 6);
+
+  $("#materialGapGrid").innerHTML = gaps.length
+    ? gaps
+        .map(
+          ({ project, items }) => `
+            <article class="material-gap-card">
+              <div class="tag-row">
+                <span class="tag">${escapeHtml(project.course)}</span>
+                <span class="tag ${riskClass(project.risk)}">${project.risk}风险</span>
+              </div>
+              <h3>${escapeHtml(project.title)}</h3>
+              <p class="meta-line">还差 ${items.length} 项材料/准备</p>
+              <ul>
+                ${items
+                  .slice(0, 3)
+                  .map((item) => `<li>${escapeHtml(item.text)}</li>`)
+                  .join("")}
+              </ul>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">材料准备项都清爽了。</div>`;
+}
+
+function nextStep(project) {
+  if (project.nextAction) return project.nextAction;
+  const todo = openTodos(project)[0];
+  if (todo) return `下一步：${todo.text}`;
+  const material = openMaterials(project)[0];
+  if (material) return `先准备：${material.text}`;
+  if (project.status !== "已提交") return "检查格式并准备提交";
+  return "已提交";
+}
+
+function renderProjects() {
+  const container = $("#projectList");
+  const projects = sortedProjects().filter((project) => {
+    if (projectFilter === "active") return project.status !== "已提交";
+    if (projectFilter === "risk") return project.risk === "高" && project.status !== "已提交";
+    if (projectFilter === "done") return project.status === "已提交";
+    return true;
+  });
+
+  if (!projects.length) {
+    container.innerHTML = `<div class="empty">这个视图下还没有项目。</div>`;
     return;
   }
 
-  container.innerHTML = [...state.reviews]
-    .sort((a, b) => new Date(b.date) - new Date(a.date))
+  container.innerHTML = projects.map(renderProjectCard).join("");
+}
+
+function renderProjectCard(project) {
+  const todoProgress = projectProgress(project);
+  const prepProgress = materialProgress(project);
+  return `
+    <article class="project-card">
+      <div class="project-card-head">
+        <div>
+          <div class="tag-row">
+            <span class="tag">${escapeHtml(project.type)}</span>
+            <span class="tag ${riskClass(project.risk)}">${project.risk}风险</span>
+            <span class="tag ${statusClass(project.status)}">${escapeHtml(project.status)}</span>
+          </div>
+          <h3>${escapeHtml(project.title)}</h3>
+          <p class="meta-line">${escapeHtml(project.course)} · ${dueLabel(project)}</p>
+        </div>
+        <button class="small-button danger" data-delete-project="${project.id}">删除</button>
+      </div>
+
+      <div class="progress-block">
+        <div class="progress-label"><span>待办进度</span><strong>${todoProgress}%</strong></div>
+        <div class="progress"><span style="width: ${todoProgress}%"></span></div>
+      </div>
+      <div class="progress-block">
+        <div class="progress-label"><span>材料准备</span><strong>${prepProgress}%</strong></div>
+        <div class="progress prep"><span style="width: ${prepProgress}%"></span></div>
+      </div>
+
+      <div class="card-section">
+        <strong>剩余待办</strong>
+        <div class="check-stack">
+          ${renderChecklist(project, "todo", project.todos, "还没有待办，建议补上拆分动作。")}
+        </div>
+      </div>
+
+      <div class="card-section">
+        <strong>材料 / 准备项</strong>
+        <div class="check-stack">
+          ${renderChecklist(project, "material", project.materials, "还没有材料清单。")}
+        </div>
+      </div>
+
+      <div class="card-note-grid">
+        <div>
+          <span>卡点</span>
+          <p>${escapeHtml(project.blocker || "暂未记录")}</p>
+        </div>
+        <div>
+          <span>下一步</span>
+          <p>${escapeHtml(nextStep(project))}</p>
+        </div>
+      </div>
+
+      <div class="status-row">
+        <label>
+          状态
+          <select data-status-project="${project.id}">
+            ${["未开始", "进行中", "待修改", "已提交"]
+              .map(
+                (status) =>
+                  `<option value="${status}" ${project.status === status ? "selected" : ""}>${status}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
+        <label>
+          风险
+          <select data-risk-project="${project.id}">
+            ${["低", "中", "高"]
+              .map((risk) => `<option value="${risk}" ${project.risk === risk ? "selected" : ""}>${risk}</option>`)
+              .join("")}
+          </select>
+        </label>
+      </div>
+    </article>
+  `;
+}
+
+function renderChecklist(project, kind, items, emptyText) {
+  if (!items.length) return `<p class="meta-line">${emptyText}</p>`;
+  return items
     .map(
-      (review) => `
-      <article class="review-item">
-        <div class="tag-row">
-          <span class="tag green">${escapeHtml(review.type)}</span>
-          <span class="tag">${formatDate(review.date)}</span>
-          <span class="tag">${Number(review.minutes || 0)}m</span>
-          <span class="tag yellow">能量 ${review.energy}/5</span>
-        </div>
-        <h3>${escapeHtml(review.content)}</h3>
-        <p class="meta-line">${escapeHtml(review.reflection || "还没有写调整策略")}</p>
-        <div class="item-actions">
-          <button class="small-button danger" data-delete-review="${review.id}">删除</button>
-        </div>
-      </article>
-    `
+      (item) => `
+        <label class="check-line">
+          <input type="checkbox" data-project="${project.id}" data-kind="${kind}" data-item="${item.id}" ${
+            item.done ? "checked" : ""
+          } />
+          <span>${escapeHtml(item.text)}</span>
+        </label>
+      `
     )
     .join("");
+}
+
+function renderActions() {
+  const projects = sortedProjects().filter((project) => project.status !== "已提交");
+  $("#actionList").innerHTML = projects.length
+    ? projects
+        .map((project, index) => {
+          const todo = openTodos(project)[0];
+          const material = openMaterials(project)[0];
+          return `
+            <article class="action-card">
+              <strong class="rank">${index + 1}</strong>
+              <div>
+                <div class="tag-row">
+                  <span class="tag ${riskClass(project.risk)}">${project.risk}风险</span>
+                  <span class="tag">${formatDate(project.due)}</span>
+                  <span class="tag">${projectProgress(project)}%</span>
+                </div>
+                <h3>${escapeHtml(project.title)}</h3>
+                <p class="meta-line">${escapeHtml(project.course)} · ${dueLabel(project)}</p>
+                <p class="action-line">${escapeHtml(nextStep(project))}</p>
+                ${
+                  material
+                    ? `<p class="meta-line">材料先补：${escapeHtml(material.text)}</p>`
+                    : todo
+                      ? `<p class="meta-line">当前待办：${escapeHtml(todo.text)}</p>`
+                      : ""
+                }
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<div class="empty">没有进行中的项目，期末盘点暂时清空。</div>`;
+}
+
+function renderMaterialBoard() {
+  const projects = sortedProjects();
+  $("#materialBoard").innerHTML = projects.length
+    ? projects
+        .map(
+          (project) => `
+            <article class="material-project">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">${escapeHtml(project.course)}</p>
+                  <h3>${escapeHtml(project.title)}</h3>
+                </div>
+                <span class="tag">${materialProgress(project)}%</span>
+              </div>
+              <div class="check-stack">
+                ${renderChecklist(project, "material", project.materials, "还没有材料清单。")}
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">先新增一个期末项目，再整理需要的材料。</div>`;
 }
 
 function renderAll() {
   renderMetrics();
-  renderGoalFlow();
-  renderWeekMap();
-  renderTodayStrip();
-  renderGoalSelect();
-  renderFocusTaskSelect();
-  renderGoals();
-  renderTasks();
-  renderReviews();
-  renderTimer();
+  renderPriorityList();
+  renderDeadlineRail();
+  renderMaterialGaps();
+  renderProjects();
+  renderActions();
+  renderMaterialBoard();
 }
 
 function formValues(form) {
@@ -327,9 +450,8 @@ function formValues(form) {
 
 function setDefaultDates() {
   const today = new Date().toISOString().slice(0, 10);
-  $("#reviewForm [name='date']").value = today;
-  $("#goalForm [name='deadline']").value = "2026-12-31";
-  $("#taskForm [name='due']").value = today;
+  const dueInput = $("#projectForm [name='due']");
+  if (!dueInput.value) dueInput.value = today;
 }
 
 $$(".nav-pill").forEach((button) => button.addEventListener("click", () => setView(button.dataset.view)));
@@ -337,88 +459,50 @@ $$("[data-view-jump]").forEach((button) =>
   button.addEventListener("click", () => setView(button.dataset.viewJump))
 );
 
-$("#goalForm").addEventListener("submit", (event) => {
+$("#projectForm").addEventListener("submit", (event) => {
   event.preventDefault();
   const values = formValues(event.currentTarget);
-  state.goals.push({
-    id: crypto.randomUUID(),
-    title: values.title,
-    deadline: values.deadline,
-    why: values.why,
-    milestones: values.milestones
-      .split("\n")
-      .map((text) => text.trim())
-      .filter(Boolean)
-      .map((text) => ({ id: crypto.randomUUID(), text, done: false }))
-  });
-  event.currentTarget.reset();
-  setDefaultDates();
-  saveState();
-  renderAll();
-});
-
-$("#taskForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const values = formValues(event.currentTarget);
-  state.tasks.push({
+  state.projects.push({
     id: crypto.randomUUID(),
     title: values.title,
     course: values.course,
-    week: Number(values.week || 1),
-    due: values.due,
-    load: values.load,
-    goalId: values.goalId || null,
-    done: false
-  });
-  event.currentTarget.reset();
-  setDefaultDates();
-  saveState();
-  renderAll();
-});
-
-$("#reviewForm").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const values = formValues(event.currentTarget);
-  state.reviews.push({
-    id: crypto.randomUUID(),
-    date: values.date,
     type: values.type,
-    content: values.content,
-    reflection: values.reflection,
-    minutes: Number(values.minutes || 0),
-    energy: Number(values.energy || 3)
+    due: values.due,
+    status: values.status,
+    importance: values.importance,
+    risk: values.risk,
+    blocker: values.blocker,
+    nextAction: values.nextAction,
+    todos: parseLines(values.todos),
+    materials: parseLines(values.materials)
   });
   event.currentTarget.reset();
   setDefaultDates();
-  saveState();
-  renderAll();
-});
-
-$("#quickTaskForm").addEventListener("submit", (event) => {
-  const values = formValues(event.currentTarget);
-  if (!values.title || !values.course) return;
-  state.tasks.push({
-    id: crypto.randomUUID(),
-    title: values.title,
-    course: values.course,
-    week: 1,
-    due: new Date().toISOString().slice(0, 10),
-    load: "中",
-    goalId: state.goals[0]?.id || null,
-    done: false
-  });
-  event.currentTarget.reset();
   saveState();
   renderAll();
 });
 
 document.body.addEventListener("change", (event) => {
   const target = event.target;
-  if (!target.matches("[data-goal][data-milestone]")) return;
-  const goal = state.goals.find((item) => item.id === target.dataset.goal);
-  const milestone = goal?.milestones.find((item) => item.id === target.dataset.milestone);
-  if (milestone) {
-    milestone.done = target.checked;
+  if (target.matches("[data-project][data-kind][data-item]")) {
+    const project = state.projects.find((item) => item.id === target.dataset.project);
+    const list = target.dataset.kind === "todo" ? project?.todos : project?.materials;
+    const item = list?.find((entry) => entry.id === target.dataset.item);
+    if (item) item.done = target.checked;
+    saveState();
+    renderAll();
+  }
+
+  if (target.matches("[data-status-project]")) {
+    const project = state.projects.find((item) => item.id === target.dataset.statusProject);
+    if (project) project.status = target.value;
+    saveState();
+    renderAll();
+  }
+
+  if (target.matches("[data-risk-project]")) {
+    const project = state.projects.find((item) => item.id === target.dataset.riskProject);
+    if (project) project.risk = target.value;
     saveState();
     renderAll();
   }
@@ -428,42 +512,16 @@ document.body.addEventListener("click", (event) => {
   const target = event.target.closest("button");
   if (!target) return;
 
-  if (target.dataset.open) {
-    $(`#${target.dataset.open}`).showModal();
-  }
-
-  if (target.dataset.taskFilter) {
-    taskFilter = target.dataset.taskFilter;
-    $$("[data-task-filter]").forEach((button) => {
-      button.classList.toggle("active", button.dataset.taskFilter === taskFilter);
+  if (target.dataset.projectFilter) {
+    projectFilter = target.dataset.projectFilter;
+    $$("[data-project-filter]").forEach((button) => {
+      button.classList.toggle("active", button.dataset.projectFilter === projectFilter);
     });
-    renderTasks();
+    renderProjects();
   }
 
-  if (target.dataset.toggleTask) {
-    const task = state.tasks.find((item) => item.id === target.dataset.toggleTask);
-    if (task) task.done = !task.done;
-    saveState();
-    renderAll();
-  }
-
-  if (target.dataset.deleteTask) {
-    state.tasks = state.tasks.filter((item) => item.id !== target.dataset.deleteTask);
-    saveState();
-    renderAll();
-  }
-
-  if (target.dataset.deleteGoal) {
-    state.goals = state.goals.filter((item) => item.id !== target.dataset.deleteGoal);
-    state.tasks = state.tasks.map((task) =>
-      task.goalId === target.dataset.deleteGoal ? { ...task, goalId: null } : task
-    );
-    saveState();
-    renderAll();
-  }
-
-  if (target.dataset.deleteReview) {
-    state.reviews = state.reviews.filter((item) => item.id !== target.dataset.deleteReview);
+  if (target.dataset.deleteProject) {
+    state.projects = state.projects.filter((project) => project.id !== target.dataset.deleteProject);
     saveState();
     renderAll();
   }
@@ -475,138 +533,5 @@ $("#clearData").addEventListener("click", () => {
   renderAll();
 });
 
-function activeElapsedSeconds() {
-  const timer = state.timer;
-  const runningSeconds =
-    timer.running && timer.startedAt
-      ? Math.floor((Date.now() - new Date(timer.startedAt).getTime()) / 1000)
-      : 0;
-  return Math.max(0, Number(timer.accumulated || 0) + runningSeconds);
-}
-
-function formatDuration(totalSeconds, compact = false) {
-  const seconds = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const rest = seconds % 60;
-  if (compact) {
-    return hours > 0
-      ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
-      : `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
-  }
-  return [hours, minutes, rest].map((value) => String(value).padStart(2, "0")).join(":");
-}
-
-function currentTimerTitle() {
-  const task = state.tasks.find((item) => item.id === state.timer.taskId);
-  return state.timer.title || task?.title || "未命名学习段";
-}
-
-function renderTimer() {
-  const elapsed = activeElapsedSeconds();
-  $("#focusClock").textContent = formatDuration(elapsed);
-  $("#focusMiniTime").textContent = formatDuration(elapsed, true);
-  $("#focusTitle").value = state.timer.title || "";
-  $("#focusTaskSelect").value = state.timer.taskId || "";
-  $("#focusNote").value = state.timer.note || "";
-
-  const status = $("#focusStatus");
-  status.classList.toggle("running", state.timer.running);
-  status.classList.toggle("paused", !state.timer.running && elapsed > 0);
-  status.textContent = state.timer.running ? "计时中" : elapsed > 0 ? "已暂停" : "未开始";
-  $("#focusStart").textContent = state.timer.running ? "计时中" : elapsed > 0 ? "继续" : "开始";
-  $("#focusStart").disabled = state.timer.running;
-  $("#focusPause").disabled = !state.timer.running;
-  $("#focusFinish").disabled = elapsed < 1;
-}
-
-function syncTimerInputs() {
-  state.timer.title = $("#focusTitle").value.trim();
-  state.timer.taskId = $("#focusTaskSelect").value;
-  state.timer.note = $("#focusNote").value.trim();
-}
-
-function startTimer() {
-  syncTimerInputs();
-  if (state.timer.running) return;
-  state.timer.running = true;
-  state.timer.startedAt = new Date().toISOString();
-  saveState();
-  renderTimer();
-  ensureTimerTick();
-}
-
-function pauseTimer() {
-  if (!state.timer.running) return;
-  state.timer.accumulated = activeElapsedSeconds();
-  state.timer.running = false;
-  state.timer.startedAt = null;
-  syncTimerInputs();
-  saveState();
-  renderTimer();
-}
-
-function finishTimer() {
-  syncTimerInputs();
-  const elapsed = activeElapsedSeconds();
-  if (elapsed < 1) return;
-
-  const minutes = Math.max(1, Math.round(elapsed / 60));
-  state.reviews.push({
-    id: crypto.randomUUID(),
-    date: new Date().toISOString().slice(0, 10),
-    type: "日复盘",
-    content: currentTimerTitle(),
-    reflection: state.timer.note || `完成一段 ${minutes} 分钟的学习。`,
-    minutes,
-    energy: 4
-  });
-
-  state.timer = {
-    running: false,
-    title: "",
-    taskId: "",
-    startedAt: null,
-    accumulated: 0,
-    note: ""
-  };
-  saveState();
-  renderAll();
-}
-
-function ensureTimerTick() {
-  if (timerTick) return;
-  timerTick = window.setInterval(() => {
-    if (!state.timer.running) return;
-    renderTimer();
-  }, 1000);
-}
-
-$("#focusToggle").addEventListener("click", () => {
-  const dock = $("#focusDock");
-  const collapsed = dock.classList.toggle("collapsed");
-  $("#focusToggle").setAttribute("aria-expanded", String(!collapsed));
-});
-
-$("#focusStart").addEventListener("click", startTimer);
-$("#focusPause").addEventListener("click", pauseTimer);
-$("#focusFinish").addEventListener("click", finishTimer);
-
-["#focusTitle", "#focusTaskSelect", "#focusNote"].forEach((selector) => {
-  $(selector).addEventListener("input", () => {
-    syncTimerInputs();
-    saveState();
-  });
-  $(selector).addEventListener("change", () => {
-    syncTimerInputs();
-    saveState();
-  });
-});
-
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") renderTimer();
-});
-
 setDefaultDates();
 renderAll();
-ensureTimerTick();
